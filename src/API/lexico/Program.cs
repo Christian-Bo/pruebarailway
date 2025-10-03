@@ -1,6 +1,8 @@
 using System;
+using System.Reflection;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.OpenApi.Models;
 using Lexico.Application.Contracts;
 using Lexico.Application.Services;
 using Lexico.Infrastructure.Data;
@@ -17,7 +19,19 @@ builder.WebHost.UseUrls($"http://*:{port}");
 // Swagger
 // -----------------------------------------------------------------------------
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Lexico.API", Version = "v1" });
+
+    // Evita conflictos cuando existen clases con el mismo nombre en distintos namespaces
+    c.CustomSchemaIds(t => t.FullName);
+
+    // Incluye XML SOLO si existe (evita excepciones en producción)
+    var xmlName = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlName);
+    if (File.Exists(xmlPath))
+        c.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+});
 
 // -----------------------------------------------------------------------------
 // CORS (lee AllowedOrigins de appsettings; si viene "*" o vacío => AllowAnyOrigin)
@@ -75,10 +89,14 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 });
 
 // -----------------------------------------------------------------------------
-// Swagger (déjalo activo para probar en prod si quieres /swagger)
+// Swagger (mantener en prod para /swagger)
 // -----------------------------------------------------------------------------
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lexico.API v1");
+    // c.RoutePrefix = "swagger"; // por defecto ya es "swagger"
+});
 
 // -----------------------------------------------------------------------------
 // CORS
